@@ -23,6 +23,11 @@
 int lsh_cd(char **args);
 int lsh_help(char **args);
 int lsh_exit(char **args);
+int lsh_pwd(char **args);
+int lsh_echo(char **args);
+int lsh_history(char **args);
+int lsh_env(char **args);
+
 
 /*
   List of builtin commands, followed by their corresponding functions.
@@ -30,13 +35,21 @@ int lsh_exit(char **args);
 char *builtin_str[] = {
   "cd",
   "help",
-  "exit"
+  "exit",
+  "pwd",
+  "echo",
+  "history",
+  "env"
 };
 
 int (*builtin_func[]) (char **) = {
   &lsh_cd,
   &lsh_help,
-  &lsh_exit
+  &lsh_exit,
+  &lsh_pwd,
+  &lsh_echo,
+  &lsh_history,
+  &lsh_env
 };
 
 int lsh_num_builtins() {
@@ -55,10 +68,17 @@ int lsh_num_builtins() {
 int lsh_cd(char **args)
 {
   if (args[1] == NULL) {
-    fprintf(stderr, "lsh: expected argument to \"cd\"\n");
-  } else {
+    fprintf(stderr, "lsh: cd: expected argument to \"cd\"\n");
+  } else if (args[2]) {
+    fprintf(stderr, "lsh: cd: too many arguments to \"cd\"\n");
+  }
+  else if (args[1][0] == '-') {
+        fprintf(stderr, "lsh: cd: %s: invalid option\n", args[1]);
+        return 1;
+  }
+  else {
     if (chdir(args[1]) != 0) {
-      perror("lsh");
+      perror("lsh: cd");
     }
   }
   return 1;
@@ -72,6 +92,42 @@ int lsh_cd(char **args)
 int lsh_help(char **args)
 {
   int i;
+  if (args[1][0] == '-') {
+    fprintf(stderr, "lsh: help: %s: invalid option\n", args[1]);
+    return 1;
+  }
+  if (strcmp(args[1], "cd") == 0) {
+    printf("cd: change the shell working directory.\n");
+    printf("Usage: cd <directory>\n");
+    printf("Options: has no implemented options\n");
+  } else if (strcmp(args[1], "help") == 0) {
+    printf("help: display information about builtin commands.\n");
+    printf("Usage: help [command]\n");
+    printf("Options: has no implemented options\n");
+  } else if (strcmp(args[1], "exit") == 0) {
+    printf("exit: exit the shell.\n");
+    printf("Usage: exit\n");
+  } else if (strcmp(args[1], "pwd") == 0) {
+    printf("pwd: print the current working directory.\n");
+    printf("Usage: pwd\n");
+    printf("Options: has no implemented options\n");
+  } else if (strcmp(args[1], "echo") == 0) {
+    printf("echo: print arguments to the terminal.\n");
+    printf("Usage: echo [arguments...]\n");
+    printf("Options: has no implemented options\n");
+  } else if (strcmp(args[1], "history") == 0) {
+    printf("history: print the command history.\n");
+    printf("Usage: history\n");
+    printf("Args: history [n] - print the last n commands. If n is not provided, print the full history.\n");
+    printf("Options: has no implemented options\n");
+  } else if (strcmp(args[1], "env") == 0) {
+    printf("env: print environment variables.\n");
+    printf("Usage: env\n");
+    printf("Options: has no implemented options\n");
+  } else {
+    fprintf(stderr, "lsh: no help topics match '%s'.\n", args[1]);
+    return 1;
+  }
   printf("Stephen Brennan's LSH\n");
   printf("Type program names and arguments, and hit enter.\n");
   printf("The following are built in:\n");
@@ -93,6 +149,124 @@ int lsh_exit(char **args)
 {
   return 0;
 }
+
+/**
+   @brief Builtin command: print working directory.
+   @param args List of args.  Not examined.
+   @return Always returns 1, to continue executing.
+ */
+int lsh_pwd(char **args)
+{  
+  if (args[1][0] == '-') {
+    fprintf(stderr, "lsh: pwd: %s: invalid option\n", args[1]);
+    return 1;
+  }
+  char cwd[1024];
+  if (getcwd(cwd, sizeof(cwd)) != NULL) {
+    printf("%s\n", cwd);
+  } else {
+    perror("lsh: pwd");
+  }
+  return 1;
+}
+
+/**
+   @brief Builtin command: echo arguments.
+   @param args List of args.  args[0] is "echo".  args[1..n] are printed.
+   @return Always returns 1, to continue executing.
+ */
+int lsh_echo(char **args)
+{  int i = 1;
+  // if (args[1] == NULL) {
+  //   fprintf(stderr, "lsh: expected argument to \"echo\"\n");
+  //   return 1;
+  // }
+  while (args[i] != NULL) {
+    printf("%s ", args[i]);
+    i++;
+  }
+  printf("\n");
+  return 1;
+}
+
+/**
+   @brief Builtin command: print command history.
+   @param args List of args.  Not examined.
+   @return Always returns 1, to continue executing.
+ */
+#define MAX_HISTORY 100
+char *history[MAX_HISTORY];
+int history_count = 0;
+
+int lsh_history(char **args) {
+    // Case 1: too many arguments
+    if (args[1] != NULL && args[2] != NULL) {
+        fprintf(stderr, "lsh: too many arguments to \"history\"\n");
+        return 1;
+    }
+
+    // Case 2: no argument → show full history
+    if (args[1] == NULL) {
+        for (int i = 0; i < history_count; i++)
+            printf("%d %s\n", i + 1, history[i]);
+        return 1;
+    }
+
+    // Case 3: one argument – must not start with '-'
+    if (args[1][0] == '-') {
+        fprintf(stderr, "lsh: history: %s: invalid option\n", args[1]);
+        return 1;
+    }
+
+    // Case 4: one argument – must be a valid number
+    char *endptr;
+    long n = strtol(args[1], &endptr, 10);
+
+    if (*endptr != '\0') {
+        fprintf(stderr, "lsh: history: argument is not a valid number. "
+                "Numeric argument required.\n");
+        return 1;
+    }
+    if (n <= 0) {
+        fprintf(stderr, "lsh: history: number must be positive.\n");
+        return 1;
+    }
+    if (n > history_count) {
+        fprintf(stderr, "lsh: history: argument exceeds history count.\n");
+        return 1;
+    }
+
+    printf("Showing last %ld commands:\n", n);
+    for (int i = history_count - n; i < history_count; i++)
+        printf("%d %s\n", i + 1, history[i]);
+
+    return 1;
+}
+
+
+/**
+   @brief Builtin command: print environment variables.
+   @param args List of args.  Not examined.
+   @return Always returns 1, to continue executing.
+ */
+extern char **environ;   // declared by the system
+
+int lsh_env(char **args) {
+    // Print each environment variable in "KEY=VALUE" format
+    if (args[1][0] == '-') {
+    fprintf(stderr, "lsh: env: %s: invalid option\n", args[1]);
+    return 1;
+    }
+    if (args[1] != NULL) {
+        fprintf(stderr, "lsh: env: %s: no such file or directory\n", args[1]);
+        return 1;
+    }
+    for (char **env = environ; *env != NULL; env++) {
+        printf("%s\n", *env);
+    }
+    return 1;   // continue the shell loop
+}
+
 
 /**
   @brief Launch a program and wait for it to terminate.
@@ -245,6 +419,25 @@ char **lsh_split_line(char *line)
 }
 
 /**
+   @brief Add a command to the history.
+   @param cmd The command to add.
+ */
+
+void add_to_history(const char *cmd) {
+    if (cmd == NULL || *cmd == '\0') return;   // ignore empty lines
+
+    // If the list is full, drop the oldest entry (shift the array left).
+    if (history_count == MAX_HISTORY) {
+        free(history[0]);
+        for (int i = 0; i < MAX_HISTORY - 1; i++)
+            history[i] = history[i + 1];
+        history_count--;
+    }
+    history[history_count++] = strdup(cmd);
+}
+
+
+/**
    @brief Loop getting input and executing it.
  */
 void lsh_loop(void)
@@ -257,6 +450,7 @@ void lsh_loop(void)
     printf("> ");
     line = lsh_read_line();
     args = lsh_split_line(line);
+    add_to_history(line);
     status = lsh_execute(args);
 
     free(line);
