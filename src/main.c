@@ -107,53 +107,58 @@ int lsh_cd(char **args)
  */
 int lsh_help(char **args)
 {
-  int i;
-  if (args[1][0] == '-') {
-    fprintf(stderr, "lsh: help: %s: invalid option\n", args[1]);
-    return 1;
-  }
-  if (strcmp(args[1], "cd") == 0) {
-    printf("cd: change the shell working directory.\n");
-    printf("Usage: cd <directory>\n");
-    printf("Options: has no implemented options\n");
-  } else if (strcmp(args[1], "help") == 0) {
-    printf("help: display information about builtin commands.\n");
-    printf("Usage: help [command]\n");
-    printf("Options: has no implemented options\n");
-  } else if (strcmp(args[1], "exit") == 0) {
-    printf("exit: exit the shell.\n");
-    printf("Usage: exit\n");
-  } else if (strcmp(args[1], "pwd") == 0) {
-    printf("pwd: print the current working directory.\n");
-    printf("Usage: pwd\n");
-    printf("Options: has no implemented options\n");
-  } else if (strcmp(args[1], "echo") == 0) {
-    printf("echo: print arguments to the terminal.\n");
-    printf("Usage: echo [arguments...]\n");
-    printf("Options: has no implemented options\n");
-  } else if (strcmp(args[1], "history") == 0) {
-    printf("history: print the command history.\n");
-    printf("Usage: history\n");
-    printf("Args: history [n] - print the last n commands. If n is not provided, print the full history.\n");
-    printf("Options: has no implemented options\n");
-  } else if (strcmp(args[1], "env") == 0) {
-    printf("env: print environment variables.\n");
-    printf("Usage: env\n");
-    printf("Options: has no implemented options\n");
-  } else {
-    fprintf(stderr, "lsh: no help topics match '%s'.\n", args[1]);
-    return 1;
-  }
-  printf("Stephen Brennan's LSH\n");
-  printf("Type program names and arguments, and hit enter.\n");
-  printf("The following are built in:\n");
+    // No argument → print general help
+    if (args[1] == NULL) {
+        printf("Stephen Brennan's LSH\n");
+        printf("Type program names and arguments, and hit enter.\n");
+        printf("The following are built in:\n");
+        for (int i = 0; i < lsh_num_builtins(); i++) {
+            printf("  %s\n", builtin_str[i]);
+        }
+        printf("Use the man command for information on other programs.\n");
+        return 1;
+    }
 
-  for (i = 0; i < lsh_num_builtins(); i++) {
-    printf("  %s\n", builtin_str[i]);
-  }
+    // Check for illegal option (starts with '-')
+    if (args[1][0] == '-') {
+        fprintf(stderr, "lsh: help: %s: invalid option\n", args[1]);
+        return 1;
+    }
 
-  printf("Use the man command for information on other programs.\n");
-  return 1;
+    // Specific command help
+    if (strcmp(args[1], "cd") == 0) {
+        printf("cd: change the shell working directory.\n");
+        printf("Usage: cd <directory>\n");
+        printf("Options: has no implemented options\n");
+    } else if (strcmp(args[1], "help") == 0) {
+        printf("help: display information about builtin commands.\n");
+        printf("Usage: help [command]\n");
+        printf("Options: has no implemented options\n");
+    } else if (strcmp(args[1], "exit") == 0) {
+        printf("exit: exit the shell.\n");
+        printf("Usage: exit\n");
+    } else if (strcmp(args[1], "pwd") == 0) {
+        printf("pwd: print the current working directory.\n");
+        printf("Usage: pwd\n");
+        printf("Options: has no implemented options\n");
+    } else if (strcmp(args[1], "echo") == 0) {
+        printf("echo: print arguments to the terminal.\n");
+        printf("Usage: echo [arguments...]\n");
+        printf("Options: has no implemented options\n");
+    } else if (strcmp(args[1], "history") == 0) {
+        printf("history: print the command history.\n");
+        printf("Usage: history\n");
+        printf("Args: history [n] - print the last n commands. If n is not provided, print the full history.\n");
+        printf("Options: has no implemented options\n");
+    } else if (strcmp(args[1], "env") == 0) {
+        printf("env: print environment variables.\n");
+        printf("Usage: env\n");
+        printf("Options: has no implemented options\n");
+    } else {
+        fprintf(stderr, "lsh: no help topics match '%s'.\n", args[1]);
+    }
+
+    return 1;
 }
 
 /**
@@ -172,18 +177,27 @@ int lsh_exit(char **args)
    @return Always returns 1, to continue executing.
  */
 int lsh_pwd(char **args)
-{  
-  if (args[1][0] == '-') {
-    fprintf(stderr, "lsh: pwd: %s: invalid option\n", args[1]);
+{
+    // Reject too many arguments
+    if (args[1] != NULL && args[2] != NULL) {
+        fprintf(stderr, "lsh: pwd: too many arguments\n");
+        return 1;
+    }
+
+    // If there is an argument, check for invalid option
+    if (args[1] != NULL && args[1][0] == '-') {
+        fprintf(stderr, "lsh: pwd: %s: invalid option\n", args[1]);
+        return 1;
+    }
+
+    // Print current working directory
+    char cwd[1024];
+    if (getcwd(cwd, sizeof(cwd)) != NULL) {
+        printf("%s\n", cwd);
+    } else {
+        perror("lsh: pwd");
+    }
     return 1;
-  }
-  char cwd[1024];
-  if (getcwd(cwd, sizeof(cwd)) != NULL) {
-    printf("%s\n", cwd);
-  } else {
-    perror("lsh: pwd");
-  }
-  return 1;
 }
 
 /**
@@ -268,19 +282,23 @@ int lsh_history(char **args) {
 extern char **environ;   // declared by the system
 
 int lsh_env(char **args) {
-    // Print each environment variable in "KEY=VALUE" format
-    if (args[1][0] == '-') {
-    fprintf(stderr, "lsh: env: %s: invalid option\n", args[1]);
-    return 1;
-    }
-    if (args[1] != NULL) {
-        fprintf(stderr, "lsh: env: %s: no such file or directory\n", args[1]);
+    // If no argument, print all environment variables
+    if (args[1] == NULL) {
+        for (char **env = environ; *env != NULL; env++)
+            printf("%s\n", *env);
         return 1;
     }
-    for (char **env = environ; *env != NULL; env++) {
-        printf("%s\n", *env);
+
+    // Argument present → check for illegal option
+    if (args[1][0] == '-') {
+        fprintf(stderr, "lsh: env: %s: invalid option\n", args[1]);
+        return 1;
     }
-    return 1;   // continue the shell loop
+
+    // If you reach here, an argument was given (not an option)
+    // treat it as an error, as the simple shell doesn't support env COMMAND
+    fprintf(stderr, "lsh: env: %s: No such file or directory\n", args[1]);
+    return 1;
 }
 
 
