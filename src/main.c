@@ -67,21 +67,37 @@ int lsh_num_builtins() {
  */
 int lsh_cd(char **args)
 {
-  if (args[1] == NULL) {
-    fprintf(stderr, "lsh: cd: expected argument to \"cd\"\n");
-  } else if (args[2]) {
-    fprintf(stderr, "lsh: cd: too many arguments to \"cd\"\n");
-  }
-  else if (args[1][0] == '-') {
+    // 1. Too many arguments
+    if (args[1] != NULL && args[2] != NULL) {
+        fprintf(stderr, "lsh: cd: too many arguments to \"cd\"\n");
+        return 1;
+    }
+
+    // 2. No argument → change to HOME directory (or handle as you wish)
+    if (args[1] == NULL) {
+        char *home = getenv("HOME");
+        if (home == NULL) {
+            fprintf(stderr, "lsh: cd: HOME not set\n");
+            return 1;
+        }
+        if (chdir(home) != 0) {
+            perror("lsh: cd");
+        }
+        return 1;
+    }
+
+    // 3. Argument starts with '-' → invalid option
+    if (args[1][0] == '-') {
         fprintf(stderr, "lsh: cd: %s: invalid option\n", args[1]);
         return 1;
-  }
-  else {
-    if (chdir(args[1]) != 0) {
-      perror("lsh: cd");
     }
-  }
-  return 1;
+
+    // 4. Normal directory change
+    if (chdir(args[1]) != 0) {
+        perror("lsh: cd");
+    }
+
+    return 1;
 }
 
 /**
